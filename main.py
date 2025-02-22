@@ -42,7 +42,7 @@ if __name__ == "__main__":
             "runas", 
             sys.executable, 
             " ".join(sys.argv), 
-            None, 
+            None,
             1
         )
     else:
