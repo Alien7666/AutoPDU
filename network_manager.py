@@ -28,18 +28,32 @@ class NetworkManager:
                 return False
                 
             # 執行 bat 檔案
-            subprocess.run(bat_file, shell=True)
+            result = subprocess.run(bat_file, shell=True, capture_output=True, text=True)
+            if result.returncode != 0:
+                self.logger.error(f"執行 BAT 檔案時發生錯誤: {result.stderr}")
+                return False
             
             # 等待網路重新啟動
-            time.sleep(5)
+            time.sleep(10)
             
+            # 驗證網路設定是否成功變更
+            if not self._verify_network_change(local_ip, timeout=30):
+                self.logger.error("網路設定驗證失敗")
+                return False
+                
+            # 測試網路連通性
+            target_ip = "10.248.250.53" if local_ip.startswith("10.") else "192.168.1.10"
+            if not self._test_connectivity(target_ip):
+                self.logger.error(f"無法連線到目標設備: {target_ip}")
+                return False
+                
             self.logger.info(f"已執行網路切換至 {local_ip}")
             return True
                 
         except Exception as e:
             self.logger.error(f"無法更改網絡設定：{e}")
             return False
-
+    
     def get_current_ip(self):
         """
         獲取當前網路IP
@@ -88,3 +102,20 @@ class NetworkManager:
                 continue
         
         return False
+    def _test_connectivity(self, target_ip, timeout=5):
+        """
+        測試網路連通性
+        Args:
+            target_ip (str): 目標IP
+            timeout (int): 超時時間（秒）
+        Returns:
+            bool: 是否可以連通
+        """
+        try:
+            ping_count = "-n" if os.name == "nt" else "-c"
+            command = f"ping {ping_count} 1 -w {timeout*1000} {target_ip}"
+            result = subprocess.run(command, shell=True, capture_output=True, text=True)
+            return result.returncode == 0
+        except Exception as e:
+            self.logger.error(f"ping 測試失敗: {e}")
+            return False

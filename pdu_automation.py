@@ -47,6 +47,7 @@ class PDUAutomation:
         sys.path.insert(0, str(vendor_path))
         from playwright.async_api import async_playwright
         self.playwright = async_playwright
+        self.browser = None
 
     async def run(self):
         try:
@@ -76,13 +77,26 @@ class PDUAutomation:
                     self.logger.info("正在切換到192網段並且開始設定...")
                     await self._handle_local_segment(page)
 
-                await browser.close()
+                await self.browser.close()
 
         except Exception as e:
             self.logger.error(f"PDU自動設定錯誤，錯誤原因: {e}")
             raise
+    async def _create_new_page(self):
+        """創建新的頁面"""
+        try:
+            if self.browser:
+                page = await self.browser.new_page()
+                page.set_default_timeout(30000)
+                return page
+            else:
+                raise Exception("瀏覽器實例尚未初始化")
+        except Exception as e:
+            self.logger.error(f"創建新頁面時發生錯誤: {e}")
+            raise
 
     async def _handle_local_segment(self, page):
+        
         """處理192網段(192.168.0.x)的設定"""
         try:
             # 切換到192網段
@@ -182,31 +196,43 @@ class PDUAutomation:
             self.logger.error(f"192網段初始設定錯誤,錯誤原因: {e}")
             raise
 
-    # async def _handle_remote_segment(self, page):
-    #     """處理10網段(10.260.258.x)的設定"""
-    #     try:
-    #         # 切換到10網段
-    #         if not self.network_manager.change_network(
-    #             NetworkConfig.REMOTE_SEGMENT['local_ip'],
-    #             NetworkConfig.REMOTE_SEGMENT['subnet_mask']
-    #         ):
-    #             raise Exception("無法切換到10網段")
+        async def _handle_remote_segment(self, page=None):
+            """處理10網段(10.260.258.x)的設定
+            Args:
+                page: 可選的Page物件，如果為None則創建新的頁面
+            """
+            try:
+                # 如果沒有提供page或page已關閉，則創建新的page
+                try:
+                    if page is None or page.is_closed():
+                        self.logger.info("創建新的頁面用於遠端設定")
+                        page = await self._create_new_page()
+                except Exception:
+                    self.logger.info("當前頁面可能已關閉，創建新的頁面")
+                    page = await self._create_new_page()
 
-    #         # 連接到PDU
-    #         await page.goto(f"http://{NetworkConfig.REMOTE_SEGMENT['pdu_ip']}/login.csp")
-            
-    #         # 登入動作
-    #         login_page = LoginPage(page)
-    #         await login_page.login()
-    #         time.sleep(3)
-    #         # self.logger.info("10網段登入成功")
-    #         # SNMP設定動作
-    #         snmp_setting_page = SNMPSettingsPage(page)
-    #         await snmp_setting_page.navigate_to_snmp_settings()
-    #         time.sleep(3)
-    #         await snmp_setting_page.configure_snmp()
-    #         time.sleep(3)
+                # 切換到10網段
+                if not self.network_manager.change_network(
+                    NetworkConfig.REMOTE_SEGMENT['local_ip'],
+                    NetworkConfig.REMOTE_SEGMENT['subnet_mask']
+                ):
+                    raise Exception("無法切換到10網段")
 
-    #     except Exception as e:
-    #         self.logger.error(f"10網段設定出錯,錯誤原因: {e}")
-    #         raise
+                # 連接到PDU
+                await page.goto(f"http://{NetworkConfig.REMOTE_SEGMENT['pdu_ip']}/login.csp")
+                
+                # 登入動作
+                login_page = LoginPage(page)
+                await login_page.login()
+                time.sleep(3)
+                
+                # SNMP設定動作
+                snmp_setting_page = SNMPSettingsPage(page)
+                await snmp_setting_page.navigate_to_snmp_settings()
+                time.sleep(3)
+                await snmp_setting_page.configure_snmp()
+                time.sleep(3)
+
+            except Exception as e:
+                self.logger.error(f"10網段設定出錯,錯誤原因: {e}")
+                raise
