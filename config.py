@@ -13,7 +13,7 @@ class NetworkConfig:
         'local_ip': '192.168.1.11',
         'subnet_mask': '255.255.255.0',
         'gateway': '192.168.0.1',
-        'pdu_ip' : '192.168.1.1'
+        'pdu_ip' : '192.168.1.10'
     }
     
     REMOTE_SEGMENT = {
@@ -31,4 +31,4 @@ class PDUConfig:
         CONNECTION_TIMEOUT: 連線超時時間(秒)
     """
     RESTART_WAIT_TIME = 60
-    CONNECTION_TIMEOUT = 10
+    CONNECTION_TIMEOUT = 30
